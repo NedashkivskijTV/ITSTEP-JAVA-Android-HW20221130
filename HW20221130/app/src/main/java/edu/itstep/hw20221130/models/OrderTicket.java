@@ -9,6 +9,12 @@ public class OrderTicket implements Serializable {
     private String departureTime;
     private String oneTicketCost;
 
+    private int directionPosition; // використовується тільки при повороті екрана
+    private int timePosition; // використовується тільки при повороті екрана
+
+    private boolean isDirectionChanged; // індикатор, що використовується для забезпечення
+    // коректного виведенні часу відправлення при зміні напрямку та у наслідок зміни положення екрана
+
     public OrderTicket() {
     }
 
@@ -51,4 +57,29 @@ public class OrderTicket implements Serializable {
     public void setOneTicketCost(String oneTicketCost) {
         this.oneTicketCost = oneTicketCost;
     }
+
+    public int getDirectionPosition() {
+        return directionPosition;
+    }
+
+    public void setDirectionPosition(int directionPosition) {
+        this.directionPosition = directionPosition;
+    }
+
+    public int getTimePosition() {
+        return timePosition;
+    }
+
+    public void setTimePosition(int timePosition) {
+        this.timePosition = timePosition;
+    }
+
+    public boolean isDirectionChanged() {
+        return isDirectionChanged;
+    }
+
+    public void setDirectionChanged(boolean directionChanged) {
+        isDirectionChanged = directionChanged;
+    }
+
 }

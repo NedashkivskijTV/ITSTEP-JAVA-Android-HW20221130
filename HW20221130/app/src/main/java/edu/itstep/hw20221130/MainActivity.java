@@ -41,8 +41,17 @@ public class MainActivity extends AppCompatActivity {
     // забезпечення роботи спінера по вибору часу відправлення
     private ArrayAdapter<String> adapterDepartureTime; // адаптер - оскільки має місце використання масива String[], використовується ArrayAdapter<>
     private String timeSelected; // обраний користувачем час відправлення
+    private int timePosition = 0; // позиція обраного користувачем часу відправлення в масиві автобусних рейсів (за замовчуванням = 0)
 
-    // --------------------------------
+    private boolean isRotate = false; // змінна, що використовується у якості індикатора, щодо зміни положення пристрою
+    //private boolean notSetFirstSettings = true; // змінна, що використовується у якості індикатора ------------------------------------------
+    private boolean directionChanged = false;
+
+    // лічильник кількості викликів методу створення адаптера для спінера вибору часу виїзду
+    // використовується для забезпеченні коректної роботи при переносі даних між Актівіті в наслідок
+    // зміни положення екрана
+    private int counterTime;
+
     private Button btnCalendar;
     private TextView tvDate;
     private TextView tvOneTicketCost;
@@ -54,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
 
     private OrderTicket orderTicket; // модель для передачі даних між Актівіті
 
-    private Button btnLaunchTicketActivity; // перехід на TicketActivity
+    private Button btnLaunchTicketActivity; // кнопка переходу на TicketActivity
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,9 +72,13 @@ public class MainActivity extends AppCompatActivity {
 
         databaseRequest(); // запит до БД на отримання колекції напрямків
         initView(); // ініціалізація даних
+
+
         makeAdapters(); // створення адаптерів на елементів Spinner
         initData(); // ініціалізація первинних даних
         setListener(); // підключення слухачів
+
+        dataLoadAfterScreenRotation(savedInstanceState); // завантаження даних після зміни положення екрана
     }
 
     // збереження даних при зміні положення екрана
@@ -77,6 +90,28 @@ public class MainActivity extends AppCompatActivity {
         // використовується метод .putSerializable() оскільки OrderTicket імплементує інтерфейс Serializable
         setDataToOrderTicket(); // наповнення моделі даними
         outState.putSerializable(ConstantsStore.KEY_ORDER_TICKET, orderTicket);
+    }
+
+    // завантаження даних після зміни положення екрана
+    private void dataLoadAfterScreenRotation(Bundle savedInstanceState) {
+        if (savedInstanceState != null) {
+            // отримання даних - моделі OrderTicket з об'єкта Bundle
+            // використовується метод .getSerializable() оскільки OrderTicket імплементує інтерфейс Serializable
+            orderTicket = (OrderTicket) savedInstanceState.getSerializable(ConstantsStore.KEY_ORDER_TICKET);
+
+            // оновлення стану активних елементів Актівіті після зміни положення екрану
+            isRotate = true;
+            //++counterRotate;
+            directionPosition = orderTicket.getDirectionPosition();
+            timePosition = orderTicket.getTimePosition();
+            timeSelected = orderTicket.getDepartureTime();
+
+            tvDate.setText(orderTicket.getDateOfDirection());
+            tvPlaceCount.setText(orderTicket.getCountPlaces());
+
+            directionChanged = orderTicket.isDirectionChanged();
+        }
+
     }
 
     // запит до БД на отримання колекції напрямків
@@ -96,7 +131,6 @@ public class MainActivity extends AppCompatActivity {
         btnLaunchTicketActivity = findViewById(R.id.btnLaunchTicketActivity);
         btnCalendar = findViewById(R.id.btnCalendar);
         tvDate = findViewById(R.id.tvDate);
-        //tvTicketPrice = findViewById(R.id.tvTicketPriceTitle);
         tvOneTicketCost = findViewById(R.id.tvOneTicketCost);
 
         // лічильник кількості білетів
@@ -109,15 +143,36 @@ public class MainActivity extends AppCompatActivity {
     private void makeAdapters() {
         // створення адаптера для Спінера вибору напрямку
         adapterDirection = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, directionDB.getDirectionsNamesArr()); // ініціалізація адаптера
+        spDirection.setSelection(directionPosition); // встановлення елемента, що відображатиметься при завантаженні Актівіті
         spDirection.setAdapter(adapterDirection); // встановлення Adapter у елемент Spinner
 
         // створення адаптера для Спінера вибору часу відправлення
         //makeAdapterDepartureTime();
     }
 
+    // створення адаптера для Спінера вибору часу відправлення -
+    // запускається в коді слухача по вибіру напрямку - метод setListener()
     private void makeAdapterDepartureTime() {
+
+        // конструкція для забезпеченя коректної роботи при переносі даних між спінерами
+        // в результаті зміни положення екрана
+        ++counterTime; // збільшення лічильника (кількість випадків виклитку методу)
+        if (!isRotate) {
+            timePosition = 0;
+        } else if (!directionChanged && counterTime > 1) {
+            timePosition = 0;
+        } else if (counterTime > 2) {
+            timePosition = 0;
+        }
+
+        // створення адаптера для Спінера вибору конкретного рейма автобуса (вибір часу виїзду)
+        // ініціалізація адаптера
         adapterDepartureTime = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, directionDB.getDepartureTimeArr(directionPosition));
-        spDepartureTime.setAdapter(adapterDepartureTime);
+        spDepartureTime.setAdapter(adapterDepartureTime); // встановлення елемента, що відображатиметься при завантаженні Актівіті
+        spDepartureTime.setSelection(timePosition); // встановлення адаптера на спінер
+
+        // виведення контрольних даних при тестуванні роботи спінерів
+        //Toast.makeText(this, "counterDirection=" + counterDirection + " counterTime=" + counterTime, Toast.LENGTH_LONG).show();
     }
 
     // перевірка коректності введеної дати та часу - якщо час минув виводить повідомлення
@@ -150,9 +205,7 @@ public class MainActivity extends AppCompatActivity {
     // виведення повідомлення про обрану застарілу дату/час
     private void showOutOfDateAlertDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                //.setTitle("Attention")
                 .setTitle(getResources().getString(R.string.Attention))
-                //.setMessage("Selected check-out time is out of date")
                 .setMessage(getResources().getString(R.string.AttentionText))
                 .setPositiveButton("OK", (dialogInterface, i) -> {
                     // функціонал по натисненню на кнопку
@@ -178,7 +231,6 @@ public class MainActivity extends AppCompatActivity {
         spDirection.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int position, long id) {
-                //String selectedDirection = adapterView.getItemAtPosition(position).toString();
                 directionPosition = position; // збереження обраної користувачем позиції у масиві напрямків (використовується для отримання масиву часу відправлення)
 
                 // виклик методу створення адаптера для спінера вибору часу відправлення
@@ -201,7 +253,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int position, long id) {
                 String selectedDepartureTime = adapterView.getItemAtPosition(position).toString();
-                timeSelected = selectedDepartureTime;
+                timePosition = position; // збереження обраної користувачем позиції у масиві автобусних рейсів (використовується для передачі обраної позиції у модель при повороті екрана)
+                timeSelected = selectedDepartureTime; // збереження обраного користувачем часу відправлення (використовується при перевірці коректності обраних дати та часу (має бути не пізніше поточного часу),  а також для передачі даних у модель при переході до наступного Актівіті)
 
                 // перевірка коректності обраного часу (має бути не раніше поточного часу)
                 checkSelectedTimeAndShowOutOfDateAlertDialog();
@@ -263,6 +316,13 @@ public class MainActivity extends AppCompatActivity {
         orderTicket.setCountPlaces(tvPlaceCount.getText().toString());
         orderTicket.setDepartureTime(timeSelected);
         orderTicket.setOneTicketCost(tvOneTicketCost.getText().toString());
+
+        if (!directionChanged && orderTicket.getDirectionPosition() != directionPosition) {
+            orderTicket.setDirectionChanged(true);
+        }
+        orderTicket.setDirectionPosition(directionPosition);
+
+        orderTicket.setTimePosition(timePosition);
     }
 
     // виведення вартості одного квитка
